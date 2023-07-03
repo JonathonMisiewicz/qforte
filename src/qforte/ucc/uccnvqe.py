@@ -234,6 +234,7 @@ class UCCNVQE(UCCVQE):
 
         if(res.success):
             print('  => Minimization successful!')
+            #print(self._tamps)
         else:
             print('  => WARNING: minimization result may not be tightly converged.')
         print(f'  => Minimum Energy: {res.fun:+12.10f}')

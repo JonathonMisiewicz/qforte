@@ -157,8 +157,15 @@ class ADAPTVQE(UCCVQE):
                 print('\ntoperators included from pool: \n', self._tops)
                 print('\ntamplitudes for tops: \n', self._tamps)
 
+            print(self._pool_obj)
+            self._tops = [18, 7, 10, 2]
+            self._tamps = [-0.13518643466630875, 0.5151842683335961, 0.5151842683335961, 0.581966172311339]
+            self._tops = [7, 10, 2]
+            self._tamps = [0, 0, 0]
             self.solve()
-
+            print(self._tops)
+            print(self._tamps)
+            raise Exception
             if self._max_moment_rank:
                 print('\nComputing non-iterative energy corrections')
                 self.compute_moment_energies()

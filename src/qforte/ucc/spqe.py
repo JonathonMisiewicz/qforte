@@ -188,8 +188,9 @@ class SPQE(UCCPQE):
         # Given a pool index, what is the coefficient of the "corresponding" coefficient vector element? Used to extract significant residuals in microiterations.
         # WARNING! To support repeated operators, either replace this variable or have repeated operators in the pool (which seems an awful hack).
         self._pool_idx_to_coeff_idx = {value: key for key, value in self._coeff_idx_to_pool_idx.items()}
+        print(self._pool_obj)
 
-        self.print_options_banner()
+        return self.print_options_banner()
 
         self.build_orb_energies()
 
@@ -207,16 +208,42 @@ class SPQE(UCCPQE):
         while not self._stop_macro:
 
             self.update_ansatz()
+            self._tops = [18, 2]
+            #self._tamps = [0.57371653,  0.58410528,  0.58410528, -0.29809074]
+            self._tamps = [ 0, 1]
+            #self._tamps = [ 0.34096145, -0.10704263,  0.45970309,  0.53982233]
+            #self._tops = [2, 7, 10, 18]
+            #self._tamps = [0.49951268, 0.39092204, 0.39092204, 0]
+            #self._tops = [2, 7, 10, 18]
+            #self._tamps = [0.499512685, 0.390922039, 0.390922039, 0]
+            #self._tamps = [0.09885849,  0.31917888,  0.31917888,  0.59731893]
+            self._tamps = [-1.09760886e+00, -1.47597765e-15]
+            self._tops = [2, 18]
+            """
+            NPOINTS = 6
+            for x in np.linspace(0, 2 * np.pi, NPOINTS, endpoint=False):
+                for y in np.linspace(0, np.pi, NPOINTS // 2, endpoint=False):
+                    for z in np.linspace(0, 2 * np.pi, NPOINTS, endpoint=False):
+                        print(np.real(self.get_residual_vector([x, y, y, z])))
+            raise Exception
+            """
 
-            if self._converged:
+
+            if self._stop_macro:
                 break
 
             if(self._verbose):
                 print('\ntoperators included from pool: \n', self._tops)
                 print('\ntamplitudes for tops: \n', self._tamps)
 
+            #import numdifftools as ndt
+            #foo = lambda x: np.real(self.get_residual_vector(x))
+            #jac = ndt.Jacobian(foo)
+            #j_t = jac(self._tamps)
+            #print(j_t, np.linalg.eigvals(j_t))
             self.solve()
-
+            print(np.real(self._tamps))
+            raise Exception
             if self._max_moment_rank:
                 print('\nComputing non-iterative energy corrections')
                 self.compute_moment_energies()
@@ -262,6 +289,36 @@ class SPQE(UCCPQE):
         self.print_summary_banner()
         self.verify_run()
 
+    def nr_solver(self):
+        import numdifftools as ndt
+        r = lambda x: np.real(self.get_residual_vector(x))
+        jac = ndt.Jacobian(r)
+        i = 0
+        my_l = 0.01
+        #target = np.array([0, 0, 0, 8.56709274e-02]) * (1 - my_l)
+        target = np.array([0] * len(self._tamps))
+        r_i = target - r(self._tamps)
+        while np.linalg.norm(r_i) > self._opt_thresh:
+            if i == 7: raise Exception
+            print(f"r_norm: {np.linalg.norm(r_i)}")
+            print(r_i)
+            print(self._tamps)
+            j_t = jac(self._tamps)
+            print(j_t)
+            print(np.linalg.eig(j_t))
+            delta = np.linalg.solve(j_t, r_i)
+            print(delta)
+            d_norm = np.linalg.norm(delta)
+            print(f"d_norm: {d_norm}")
+            if np.linalg.norm(delta) > 1:
+                delta *= (1 / d_norm)
+            self._tamps += delta
+            i += 1
+            r_i = target - r(self._tamps)
+            print("")
+        raise Exception
+        self._tamps = list(self._tamps)
+
     def run_realistic(self):
         raise NotImplementedError('run_realistic() is not fully implemented for SPQE.')
 
@@ -305,6 +362,99 @@ class SPQE(UCCPQE):
         print('Macro-iteration residual-norm threshold: ',  spqe_thrsh_str)
         print('Maximum number of macro-iterations:      ',  self._spqe_maxiter)
 
+        # I THINK the way to generalize these is to separate out the construction of coeff vectors...
+        print_list = set()
+        qc_X = qforte.Computer(self._nqb)
+        coeff = [0] * (2 ** self._nqb)
+        coeff[int("00001111", 2)] = 1
+        qc_X.set_coeff_vec(np.array(coeff))
+        qc_X.apply_operator(self._qb_ham)
+        coeff = qc_X.get_coeff_vec()
+        print(f"H00 {coeff[int('00001111', 2)]}")
+        print(f"H10 {coeff[int('00110011', 2)]}")
+        print(f"H20 {coeff[int('11110000', 2)]}")
+        print(f"H30 {coeff[int('11001100', 2)]}")
+        h40a = coeff[int("01101001", 2)]
+        h40b = coeff[int("10010110", 2)]
+        assert h40a == h40b
+        assert 2**(0.5) * coeff[int("01101001", 2)] == 2**(-0.5) * (coeff[int("01101001", 2)] + coeff[int("10010110", 2)])
+        print(f"H40 {2**(0.5) * coeff[int('01101001', 2)]}")
+        print_list.add(("h00", coeff[int('00001111', 2)]))
+        
+        qc_X = qforte.Computer(self._nqb)
+        coeff = [0] * (2 ** self._nqb)
+        coeff[int("00110011", 2)] = 1
+        qc_X.set_coeff_vec(np.array(coeff))
+        qc_X.apply_operator(self._qb_ham)
+        coeff = qc_X.get_coeff_vec()
+        print(f"H01 {coeff[int('00001111', 2)]}")
+        print(f"H11 {coeff[int('00110011', 2)]}")
+        print(f"H21 {coeff[int('11110000', 2)]}")
+        print(f"H31 {coeff[int('11001100', 2)]}")
+        h40a = coeff[int("01101001", 2)]
+        h40b = coeff[int("10010110", 2)]
+        assert h40a == h40b
+        assert 2**(0.5) * coeff[int("01101001", 2)] == 2**(-0.5) * (coeff[int("01101001", 2)] + coeff[int("10010110", 2)])
+        print(f"H41 {2**(0.5) * coeff[int('01101001', 2)]}")
+        print_list.add(("h01", coeff[int('00001111', 2)]))
+        print_list.add(("h11", coeff[int('00110011', 2)]))
+
+        qc_X = qforte.Computer(self._nqb)
+        coeff = [0] * (2 ** self._nqb)
+        coeff[int("11110000", 2)] = 1
+        qc_X.set_coeff_vec(np.array(coeff))
+        qc_X.apply_operator(self._qb_ham)
+        coeff = qc_X.get_coeff_vec()
+        print(f"H12 {coeff[int('00110011', 2)]}")
+        print(f"H22 {coeff[int('11110000', 2)]}")
+        print(f"H32 {coeff[int('11001100', 2)]}")
+        h40a = coeff[int("01101001", 2)]
+        h40b = coeff[int("10010110", 2)]
+        assert h40a == h40b
+        assert 2**(0.5) * coeff[int("01101001", 2)] == 2**(-0.5) * (coeff[int("01101001", 2)] + coeff[int("10010110", 2)])
+        print(f"H42 {2**(0.5) * coeff[int('01101001', 2)]}")
+        print_list.add(("h12", coeff[int('00110011', 2)]))
+        print_list.add(("h22", coeff[int('11110000', 2)]))
+
+        qc_X = qforte.Computer(self._nqb)
+        coeff = [0] * (2 ** self._nqb)
+        coeff[int("11001100", 2)] = 1
+        qc_X.set_coeff_vec(np.array(coeff))
+        qc_X.apply_operator(self._qb_ham)
+        coeff = qc_X.get_coeff_vec()
+        print(f"H03 {coeff[int('00001111', 2)]}")
+        print(f"H13 {coeff[int('00110011', 2)]}")
+        print(f"H23 {coeff[int('11110000', 2)]}")
+        print(f"H33 {coeff[int('11001100', 2)]}")
+        h40a = coeff[int("01101001", 2)]
+        h40b = coeff[int("10010110", 2)]
+        assert h40a == h40b
+        assert 2**(0.5) * coeff[int("01101001", 2)] == 2**(-0.5) * (coeff[int("01101001", 2)] + coeff[int("10010110", 2)])
+        print(f"H43 {2**(0.5) * coeff[int('01101001', 2)]}")
+        print_list.add(("h33", coeff[int('11001100', 2)]))
+
+        qc_X = qforte.Computer(self._nqb)
+        coeff = [0] * (2 ** self._nqb)
+        coeff[int("01101001", 2)] = 2**(-0.5)
+        coeff[int("10010110", 2)] = 2**(-0.5)
+        qc_X.set_coeff_vec(np.array(coeff))
+        qc_X.apply_operator(self._qb_ham)
+        coeff = qc_X.get_coeff_vec()
+        print(f"H04 {coeff[int('00001111', 2)]}")
+        print(f"H14 {coeff[int('00110011', 2)]}")
+        print(f"H24 {coeff[int('11110000', 2)]}")
+        print(f"H34 {coeff[int('11001100', 2)]}")
+        h40a = coeff[int("01101001", 2)]
+        h40b = coeff[int("10010110", 2)]
+        print(h40a, h40b)
+        assert abs(h40a - h40b) < 1e-8
+        assert abs(2**(0.5) * coeff[int("01101001", 2)] - 2**(-0.5) * (coeff[int("01101001", 2)] + coeff[int("10010110", 2)])) < 1e-8
+        print(f"H44 {2**(0.5) * coeff[int('01101001', 2)]}")
+        print_list.add(("h04", coeff[int('00001111', 2)]))
+        print_list.add(("h14", coeff[int('00110011', 2)]))
+        print_list.add(("h44", 2**(0.5) * coeff[int('01101001', 2)]))
+        print(", ".join(f"{x} -> {np.real(y)}" for x, y in print_list))
+        return {x: np.real(y) for x, y in print_list}
 
     def print_summary_banner(self):
         print('\n\n                ==> SPQE summary <==')
@@ -506,8 +656,9 @@ class SPQE(UCCPQE):
                         print(f"  {pool_idx:10}                  {np.real(rmu_sq)/(self._dt * self._dt):14.12f}")
                         if pool_idx not in self._tops:
                             print('Adding this operator to ansatz')
-                            self._tops.insert(0, pool_idx)
-                            self._tamps.insert(0, 0.0)
+                            insert_idx = 0 if False else len(self._tops)
+                            self._tops.insert(insert_idx, pool_idx)
+                            self._tamps.insert(insert_idx, 0.0)
                             operator_rank = len(self._pool_obj[pool_idx][1].terms()[0][1])
                             self._nbody_counts[operator_rank - 1] += 1
                             break

@@ -93,6 +93,8 @@ class UCCPQE(PQE, UCC):
             self.jacobi_solver()
         elif self._optimizer.lower() in ['nelder-mead', 'powell', 'bfgs', 'l-bfgs-b', 'cg', 'slsqp']:
             self.scipy_solver(self.get_sum_residual_square)
+        elif self._optimizer.lower() == "nr":
+            self.nr_solver()
         else:
             raise NotImplementedError('Currently only Jacobi, Nelder-Mead, Powell, BFGS, L-BFGS-B, CG, and SLSQP solvers are implemented')
 

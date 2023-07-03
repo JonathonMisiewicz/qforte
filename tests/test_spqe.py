@@ -1,5 +1,6 @@
 from pytest import approx
-from qforte import QubitOperator, smart_print, system_factory, SPQE, UCCNPQE
+from qforte import QubitOperator, smart_print, system_factory, SPQE, UCCNPQE, UCCNVQE, ADAPTVQE
+from numpy import arange
 
 import os
 
@@ -102,3 +103,99 @@ class TestSPQE:
         bfgs.run(optimizer='BFGS', opt_maxiter=50)
 
         assert jacobi.get_gs_energy() == approx(bfgs.get_gs_energy(), abs=1.0e-8)
+
+    def test_revive(self):
+         # In this test, we confirm that the SPQE algorithm produces
+         # identical results when using the Jacobi and BFGS solvers
+
+        Rhh = 2
+
+        mol = system_factory(system_type = 'molecule',
+                build_type = 'psi4',
+                basis = 'sto-6g',
+                mol_geometry = [('H', (0, -Rhh/2, -Rhh/2)),
+                                ('H', (0, -Rhh/2, Rhh/2)),
+                                ('H', (0, Rhh/2, -Rhh/2)),
+                                ('H', (0, Rhh/2, Rhh/2))],
+                symmetry = 'd2h',
+                multiplicity = 1, # Only singlets will work with QForte
+                charge = 0,
+                num_frozen_docc = 0,
+                num_frozen_uocc = 0,
+                run_mp2=1,
+                run_ccsd=0,
+                run_cisd=0,
+                run_fci=1)
+
+        jacobi = SPQEGSD(mol)
+        jacobi.run(opt_maxiter=100, opt_thresh=1e-6)
+
+    def test_reviveV(self):
+         # In this test, we confirm that the SPQE algorithm produces
+         # identical results when using the Jacobi and BFGS solvers
+
+        Rhh = 1.426
+
+        mol = system_factory(system_type = 'molecule',
+                build_type = 'psi4',
+                basis = 'sto-6g',
+                mol_geometry = [('H', (0, -Rhh/2, -Rhh/2)),
+                                ('H', (0, -Rhh/2, Rhh/2)),
+                                ('H', (0, Rhh/2, -Rhh/2)),
+                                ('H', (0, Rhh/2, Rhh/2))],
+                symmetry = 'd2h',
+                multiplicity = 1, # Only singlets will work with QForte
+                charge = 0,
+                num_frozen_docc = 0,
+                num_frozen_uocc = 0,
+                run_mp2=1,
+                run_ccsd=0,
+                run_cisd=0,
+                run_fci=1)
+
+        jacobi = ADAPTVQESANDBOX(mol)
+        jacobi.run(opt_maxiter=50, opt_thresh=1e-6, pool_type="GSD")
+
+    def test_XEX(self):
+        varias = {}
+        for Rhh in arange(0.9, 4.005, 0.01):
+            Rhh = 2.192
+            mol = system_factory(system_type = 'molecule',
+                    build_type = 'psi4',
+                    basis = 'sto-6g',
+                    mol_geometry = [('H', (0, 0, Rhh * i)) for i in range(4)],
+                    symmetry = 'd2h',
+                    multiplicity = 1, # Only singlets will work with QForte
+                    charge = 0,
+                    num_frozen_docc = 0,
+                    num_frozen_uocc = 0,
+                    run_mp2=0,
+                    run_ccsd=0,
+                    run_cisd=0,
+                    run_fci=1)
+            """
+            mol = system_factory(system_type = 'molecule',
+                    build_type = 'psi4',
+                    basis = 'sto-6g',
+                    mol_geometry = [('H', (0, -Rhh/2, -Rhh/2)),
+                                    ('H', (0, -Rhh/2, Rhh/2)),
+                                    ('H', (0, Rhh/2, -Rhh/2)),
+                                    ('H', (0, Rhh/2, Rhh/2))],
+                    symmetry = 'd2h',
+                    multiplicity = 1, # Only singlets will work with QForte
+                    charge = 0,
+                    num_frozen_docc = 0,
+                    num_frozen_uocc = 0,
+                    run_mp2=1,
+                    run_ccsd=0,
+                    run_cisd=0,
+                    run_fci=1)
+            """
+            
+            jacobi = SPQE(mol)
+            varias[Rhh] = jacobi.run(opt_maxiter=100, opt_thresh=1e-10, spqe_thresh=1e-8, use_cumulative_thresh=False, spqe_maxiter=1, optimizer='NR')
+            raise Exception
+        print(varias)
+        raise Exception
+
+
